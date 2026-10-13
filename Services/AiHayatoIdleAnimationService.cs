@@ -28,12 +28,14 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
         _closedImage = LoadImage("hayato-sleep.png");
         _timer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher.CurrentDispatcher);
         _timer.Tick += OnTick;
-        ResetCycle(showOpenImage: true);
+        // MainWindow is still being created here, so do not update Image.Source yet.
+        ResetCycle(showOpenImage: false);
         Log("AiHayato open image loaded: hayato-wakeup.png");
         Log("AiHayato closed image loaded: hayato-sleep.png");
     }
 
     public ImageSource OpenImage => _openImage;
+    public ImageSource ClosedImage => _closedImage;
 
     public void Start()
     {
@@ -42,7 +44,11 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
         Log("AiHayato Idle animation start");
     }
 
-    public void Pause() => _timer.Stop();
+    public void Pause()
+    {
+        _timer.Stop();
+        Log("AiHayato Idle animation pause");
+    }
     public void Resume()
     {
         if (!_timer.IsEnabled)
@@ -120,6 +126,7 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
             bitmap.StreamSource = stream;
             bitmap.EndInit();
             bitmap.Freeze();
+            Log($"AI-Hayato image loaded: {path}");
             return bitmap;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException

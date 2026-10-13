@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using DesktopMascot.Services;
@@ -61,6 +62,7 @@ public partial class MainWindow : Window
 
         ApplyCharacterMenuState();
         ApplyAnimationMode(animationMode, startMovement: true);
+        EnsureAiHayatoIdleAnimationRunning();
     }
 
     private void Window_Closed(object? sender, EventArgs e)
@@ -73,17 +75,21 @@ public partial class MainWindow : Window
 
     private void CharacterImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        LogDrag("MouseDown");
         if (_animationService?.CurrentMode != AnimationMode.Idle)
         {
+            LogDrag("Idle = false");
             return;
         }
 
+        LogDrag("Idle = true");
         _mouseDownForDrag = true;
         _isDragging = false;
-        _dragStartScreenPosition = CharacterImage.PointToScreen(e.GetPosition(CharacterImage));
+        _dragStartScreenPosition = Mouse.GetPosition(null);
         _dragStartWindowLeft = Left;
         _dragStartWindowTop = Top;
         CharacterImage.CaptureMouse();
+        System.Diagnostics.Debug.WriteLine("[Drag] Start");
         e.Handled = true;
     }
 
@@ -94,9 +100,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        var currentScreenPosition = CharacterImage.PointToScreen(e.GetPosition(CharacterImage));
+        var currentScreenPosition = Mouse.GetPosition(null);
         var deltaX = currentScreenPosition.X - _dragStartScreenPosition.X;
         var deltaY = currentScreenPosition.Y - _dragStartScreenPosition.Y;
+        LogDrag($"MouseMove dx={deltaX:0.0} dy={deltaY:0.0}");
         if (!_isDragging
             && Math.Abs(deltaX) < SystemParameters.MinimumHorizontalDragDistance
             && Math.Abs(deltaY) < SystemParameters.MinimumVerticalDragDistance)
@@ -105,12 +112,14 @@ public partial class MainWindow : Window
         }
 
         _isDragging = true;
+        LogDrag("Start");
         SetWindowPositionClamped(_dragStartWindowLeft + deltaX, _dragStartWindowTop + deltaY);
         e.Handled = true;
     }
 
     private void CharacterImage_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        LogDrag("MouseUp");
         var wasDragging = _isDragging;
         _mouseDownForDrag = false;
         _isDragging = false;
@@ -122,6 +131,8 @@ public partial class MainWindow : Window
         if (wasDragging)
         {
             SaveWindowPosition();
+            EnsureAiHayatoIdleAnimationRunning();
+            System.Diagnostics.Debug.WriteLine("[Drag] End");
             e.Handled = true;
             return;
         }
@@ -160,6 +171,7 @@ public partial class MainWindow : Window
         var maxTop = bounds.Bottom - visibleMargin;
         Left = Math.Clamp(left, minLeft, maxLeft);
         Top = Math.Clamp(top, minTop, maxTop);
+        LogDrag($"Window Left={Left:0.0} Top={Top:0.0}");
     }
 
     private void SaveWindowPosition()
@@ -167,6 +179,13 @@ public partial class MainWindow : Window
         _settings.WindowLeft = Left;
         _settings.WindowTop = Top;
         _settingsService.Save(_settings);
+        LogDrag("Saved position");
+    }
+
+    private static void LogDrag(string message)
+    {
+        System.Diagnostics.Debug.WriteLine($"[Drag] {message}");
+        Console.WriteLine($"[Drag] {message}");
     }
 
     private void MascotMenu_Opened(object sender, RoutedEventArgs e)
@@ -179,6 +198,7 @@ public partial class MainWindow : Window
     private void MascotMenu_Closed(object sender, RoutedEventArgs e)
     {
         ResumeCurrentAnimationMode();
+        EnsureAiHayatoIdleAnimationRunning();
     }
 
     private void LaunchEdge_Click(object sender, RoutedEventArgs e)
@@ -280,7 +300,7 @@ public partial class MainWindow : Window
         {
             if (_characterService.CurrentCharacter == CharacterType.AiHayato)
             {
-                StartAiHayatoIdleAnimation(resume: true);
+                EnsureAiHayatoIdleAnimationRunning();
             }
 
             return;
@@ -337,7 +357,7 @@ public partial class MainWindow : Window
         _movementService.Pause();
         if (_characterService.CurrentCharacter == CharacterType.AiHayato)
         {
-            StartAiHayatoIdleAnimation();
+            EnsureAiHayatoIdleAnimationRunning();
         }
         else
         {
@@ -347,29 +367,63 @@ public partial class MainWindow : Window
         IdleAnimationMenuItem.IsChecked = true;
     }
 
-    private void StartAiHayatoIdleAnimation(bool resume = false)
+    private void EnsureAiHayatoIdleAnimationRunning()
     {
         if (_characterService.CurrentCharacter != CharacterType.AiHayato
             || _animationService?.CurrentMode != AnimationMode.Idle)
         {
+            System.Diagnostics.Debug.WriteLine("[AiHayatoIdle] Running = false");
             return;
         }
 
-        if (resume)
-        {
-            _aiHayatoIdleAnimationService.Resume();
-        }
-        else
+        if (!_aiHayatoIdleAnimationService.IsRunning)
         {
             _aiHayatoIdleAnimationService.Start();
         }
+
+        System.Diagnostics.Debug.WriteLine(
+            $"[AiHayatoIdle] Running = {_aiHayatoIdleAnimationService.IsRunning}");
     }
 
     private void SetCharacterImage(System.Windows.Media.ImageSource image)
     {
+        if (!CharacterImage.Dispatcher.CheckAccess())
+        {
+            CharacterImage.Dispatcher.Invoke(() => SetCharacterImage(image));
+            return;
+        }
+
         CharacterImage.Source = image;
-        System.Diagnostics.Debug.WriteLine(
-            $"CharacterImage.Source updated: {System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(image)}");
+        var frameName = ReferenceEquals(image, _aiHayatoIdleAnimationService.OpenImage)
+            ? "AI-Hayato OPEN"
+            : ReferenceEquals(image, _aiHayatoIdleAnimationService.ClosedImage)
+                ? "AI-Hayato CLOSED"
+                : "Pompompurin/WALK";
+        LogImage($"[Image] Source changed: {frameName} ({System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(image)})");
+    }
+
+    private static void LogImage(string message)
+    {
+        System.Diagnostics.Debug.WriteLine(message);
+        Console.WriteLine(message);
+        try
+        {
+            var directory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "DesktopMascot");
+            Directory.CreateDirectory(directory);
+            File.AppendAllText(
+                Path.Combine(directory, "debug.log"),
+                $"{DateTime.Now:O} {message}{Environment.NewLine}");
+        }
+        catch (IOException)
+        {
+            // Diagnostics must never affect rendering.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Diagnostics must never affect rendering.
+        }
     }
 
     private void SaveAnimationMode(AnimationMode mode)
