@@ -1,5 +1,4 @@
 # DesktopMascot
-
 Windows 11 / C# / WPF / .NET 8 で動く軽量デスクトップマスコットです。Visual Studio は不要で、VS Code + .NET CLI だけで開発・実行できます。
 
 ## 必要環境
