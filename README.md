@@ -98,6 +98,16 @@ Assets/character-left.png
 
 設定ファイルがない場合や内容が壊れている場合は、`Walk`（歩く）で起動します。
 
+設定メニューの「キャラ変更」では、現在の素材をポムポムプリン、追加素材をAIハヤトとして選択できます。キャラクター設定も同じ `settings.json` に保存されます。
+
+AIハヤトの待機画像は次の場所に配置しています。
+
+```text
+C:\Git\DesktopMascot\Assets\AI-hayato\building
+```
+
+`hayato-wakeup.png`（目開き）と `hayato-sleep.png`（目閉じ）の2枚を切り替え、通常の瞬き5回、素早い瞬き2回のパターンを繰り返します。AIハヤトで待機を選択した場合は移動を停止し、この瞬きアニメーションを再生します。
+
 VS Code:
 
 ```text

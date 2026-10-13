@@ -43,6 +43,17 @@
                                       IsChecked="True"
                                       Click="WalkAnimationMenuItem_Click" />
                         </MenuItem>
+                        <MenuItem Header="キャラ変更">
+                            <MenuItem x:Name="PompompurinCharacterMenuItem"
+                                      Header="ポムポムプリン"
+                                      IsCheckable="True"
+                                      IsChecked="True"
+                                      Click="PompompurinCharacterMenuItem_Click" />
+                            <MenuItem x:Name="AiHayatoCharacterMenuItem"
+                                      Header="AIハヤト"
+                                      IsCheckable="True"
+                                      Click="AiHayatoCharacterMenuItem_Click" />
+                        </MenuItem>
                     </MenuItem>
                     <Separator />
                     <MenuItem Header="DesktopMascot停止" Click="ExitMascot_Click" />

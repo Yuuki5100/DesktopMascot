@@ -9,24 +9,38 @@ public partial class MainWindow : Window
     private const double CharacterWidth = 128;
     private readonly MonitorService _monitorService = new();
     private readonly CharacterSpriteService _spriteService = new();
+    private readonly CharacterService _characterService;
     private readonly SettingsService _settingsService = new();
     private readonly ApplicationLauncherService _launcherService = new();
     private readonly CacheCleanupService _cacheCleanupService = new();
     private MovementService? _movementService;
     private SpriteAnimationService? _animationService;
+    private readonly AiHayatoIdleAnimationService _aiHayatoIdleAnimationService;
     private AppSettings _settings = new();
 
     public MainWindow()
     {
         InitializeComponent();
+        _characterService = new CharacterService();
+        _aiHayatoIdleAnimationService = new AiHayatoIdleAnimationService(
+            frame => CharacterImage.Source = frame);
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
         _settings = _settingsService.Load();
         var animationMode = ParseAnimationMode(_settings.AnimationMode);
+        var characterType = ParseCharacterType(_settings.CharacterType);
+        _characterService.SetCharacter(characterType);
+        if (_characterService.CurrentCharacter != characterType)
+        {
+            _settings.CharacterType = _characterService.CurrentCharacter.ToString();
+            _settingsService.Save(_settings);
+        }
 
-        CharacterImage.Source = _spriteService.GetCurrentFrame();
+        CharacterImage.Source = _characterService.CurrentCharacter == CharacterType.AiHayato
+            ? _aiHayatoIdleAnimationService.OpenImage
+            : _spriteService.GetCurrentFrame();
         Width = CharacterWidth;
         if (CharacterImage.Source is System.Windows.Media.Imaging.BitmapSource frame)
         {
@@ -39,6 +53,7 @@ public partial class MainWindow : Window
         _movementService = new MovementService(this, _monitorService);
         _movementService.DirectionChanged += _animationService.SetDirection;
 
+        ApplyCharacterMenuState();
         ApplyAnimationMode(animationMode, startMovement: true);
     }
 
@@ -46,6 +61,7 @@ public partial class MainWindow : Window
     {
         _movementService?.Dispose();
         _animationService?.Dispose();
+        _aiHayatoIdleAnimationService.Dispose();
         _monitorService.Dispose();
     }
 
@@ -65,6 +81,7 @@ public partial class MainWindow : Window
     {
         _movementService?.Pause();
         _animationService?.Pause();
+        _aiHayatoIdleAnimationService.Pause();
     }
 
     private void MascotMenu_Closed(object sender, RoutedEventArgs e)
@@ -134,13 +151,59 @@ public partial class MainWindow : Window
         SaveAnimationMode(AnimationMode.Walk);
     }
 
+    private void AiHayatoCharacterMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        _characterService.SetCharacter(CharacterType.AiHayato);
+        _settings.CharacterType = CharacterType.AiHayato.ToString();
+        _settingsService.Save(_settings);
+        ApplyCharacterMenuState();
+        CharacterImage.Source = _aiHayatoIdleAnimationService.OpenImage;
+        ApplyAnimationMode(ParseAnimationMode(_settings.AnimationMode), startMovement: false);
+    }
+
+    private void PompompurinCharacterMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        _characterService.SetCharacter(CharacterType.Pompompurin);
+        _settings.CharacterType = CharacterType.Pompompurin.ToString();
+        _settingsService.Save(_settings);
+        ApplyCharacterMenuState();
+        CharacterImage.Source = _spriteService.GetCurrentFrame();
+        ApplyAnimationMode(ParseAnimationMode(_settings.AnimationMode), startMovement: false);
+
+        // Existing sprite assets are the Pompompurin character assets.
+        // Keep the current animation mode and timers unchanged.
+    }
+
+    private void ApplyCharacterMenuState()
+    {
+        PompompurinCharacterMenuItem.IsChecked =
+            _characterService.CurrentCharacter == CharacterType.Pompompurin;
+        AiHayatoCharacterMenuItem.IsChecked =
+            _characterService.CurrentCharacter == CharacterType.AiHayato;
+    }
+
     private void ResumeCurrentAnimationMode()
     {
         if (_animationService?.CurrentMode != AnimationMode.Walk)
         {
+            if (_characterService.CurrentCharacter == CharacterType.AiHayato)
+            {
+                _aiHayatoIdleAnimationService.Resume();
+            }
+
             return;
         }
 
+        if (_characterService.CurrentCharacter == CharacterType.AiHayato)
+        {
+            // AIハヤトのWalk素材は未実装のため、AIハヤトの静止画を維持する。
+            _aiHayatoIdleAnimationService.Stop();
+            _animationService.Pause();
+            _movementService?.Pause();
+            return;
+        }
+
+        _aiHayatoIdleAnimationService.Stop();
         _movementService?.Resume();
         _animationService.StartWalk();
     }
@@ -154,6 +217,19 @@ public partial class MainWindow : Window
 
         if (mode == AnimationMode.Walk)
         {
+            _aiHayatoIdleAnimationService.Stop();
+
+            if (_characterService.CurrentCharacter == CharacterType.AiHayato)
+            {
+                // AIハヤトのWalk素材が追加されるまでは、キャラクターを保ったまま静止画で待機する。
+                _animationService.Pause();
+                _movementService.Pause();
+                CharacterImage.Source = _aiHayatoIdleAnimationService.OpenImage;
+                WalkAnimationMenuItem.IsChecked = true;
+                IdleAnimationMenuItem.IsChecked = false;
+                return;
+            }
+
             _animationService.StartWalk();
             if (startMovement)
             {
@@ -167,6 +243,14 @@ public partial class MainWindow : Window
 
         _animationService.StartIdle();
         _movementService.Pause();
+        if (_characterService.CurrentCharacter == CharacterType.AiHayato)
+        {
+            _aiHayatoIdleAnimationService.Start();
+        }
+        else
+        {
+            _aiHayatoIdleAnimationService.Stop();
+        }
         WalkAnimationMenuItem.IsChecked = false;
         IdleAnimationMenuItem.IsChecked = true;
     }
@@ -182,6 +266,12 @@ public partial class MainWindow : Window
             && Enum.IsDefined(mode)
             ? mode
             : AnimationMode.Walk;
+
+    private static CharacterType ParseCharacterType(string? value)
+        => Enum.TryParse<CharacterType>(value, ignoreCase: true, out var character)
+            && Enum.IsDefined(character)
+            ? character
+            : CharacterType.Pompompurin;
 
     private static bool Confirm(string message)
         => MessageBox.Show(
