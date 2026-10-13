@@ -28,7 +28,7 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
         _closedImage = LoadImage("hayato-sleep.png");
         _timer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher.CurrentDispatcher);
         _timer.Tick += OnTick;
-        ResetCycle();
+        ResetCycle(showOpenImage: true);
         Log("AiHayato open image loaded: hayato-wakeup.png");
         Log("AiHayato closed image loaded: hayato-sleep.png");
     }
@@ -37,7 +37,7 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
 
     public void Start()
     {
-        ResetCycle();
+        ResetCycle(showOpenImage: true);
         _timer.Start();
         Log("AiHayato Idle animation start");
     }
@@ -55,17 +55,20 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
     public void Stop()
     {
         _timer.Stop();
-        ResetCycle();
+        ResetCycle(showOpenImage: false);
         Log("AiHayato Idle animation stop");
     }
 
-    private void ResetCycle()
+    private void ResetCycle(bool showOpenImage)
     {
         _normalBlinkCount = 0;
         _fastBlinkCount = 0;
         _fastPhase = false;
         _eyesClosed = false;
-        _setImage(_openImage);
+        if (showOpenImage)
+        {
+            _setImage(_openImage);
+        }
         _timer.Interval = NormalOpenDuration;
     }
 

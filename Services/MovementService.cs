@@ -54,7 +54,6 @@ public sealed class MovementService : IDisposable
         }
 
         _paused = false;
-        PlaceNearBottom();
         _timer.Start();
     }
 

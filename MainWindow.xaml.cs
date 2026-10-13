@@ -17,6 +17,11 @@ public partial class MainWindow : Window
     private SpriteAnimationService? _animationService;
     private readonly AiHayatoIdleAnimationService _aiHayatoIdleAnimationService;
     private AppSettings _settings = new();
+    private Point _dragStartScreenPosition;
+    private double _dragStartWindowLeft;
+    private double _dragStartWindowTop;
+    private bool _mouseDownForDrag;
+    private bool _isDragging;
 
     public MainWindow()
     {
@@ -24,11 +29,12 @@ public partial class MainWindow : Window
         _characterService = new CharacterService();
         _aiHayatoIdleAnimationService = new AiHayatoIdleAnimationService(
             SetCharacterImage);
+        _settings = _settingsService.Load();
+        RestoreWindowPosition();
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        _settings = _settingsService.Load();
         var animationMode = ParseAnimationMode(_settings.AnimationMode);
         var characterType = ParseCharacterType(_settings.CharacterType);
         _characterService.SetCharacter(characterType);
@@ -65,8 +71,61 @@ public partial class MainWindow : Window
         _monitorService.Dispose();
     }
 
+    private void CharacterImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_animationService?.CurrentMode != AnimationMode.Idle)
+        {
+            return;
+        }
+
+        _mouseDownForDrag = true;
+        _isDragging = false;
+        _dragStartScreenPosition = CharacterImage.PointToScreen(e.GetPosition(CharacterImage));
+        _dragStartWindowLeft = Left;
+        _dragStartWindowTop = Top;
+        CharacterImage.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void CharacterImage_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_mouseDownForDrag || _animationService?.CurrentMode != AnimationMode.Idle)
+        {
+            return;
+        }
+
+        var currentScreenPosition = CharacterImage.PointToScreen(e.GetPosition(CharacterImage));
+        var deltaX = currentScreenPosition.X - _dragStartScreenPosition.X;
+        var deltaY = currentScreenPosition.Y - _dragStartScreenPosition.Y;
+        if (!_isDragging
+            && Math.Abs(deltaX) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(deltaY) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        _isDragging = true;
+        SetWindowPositionClamped(_dragStartWindowLeft + deltaX, _dragStartWindowTop + deltaY);
+        e.Handled = true;
+    }
+
     private void CharacterImage_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        var wasDragging = _isDragging;
+        _mouseDownForDrag = false;
+        _isDragging = false;
+        if (CharacterImage.IsMouseCaptured)
+        {
+            CharacterImage.ReleaseMouseCapture();
+        }
+
+        if (wasDragging)
+        {
+            SaveWindowPosition();
+            e.Handled = true;
+            return;
+        }
+
         if (MascotMenu.IsOpen)
         {
             return;
@@ -75,6 +134,39 @@ public partial class MainWindow : Window
         MascotMenu.PlacementTarget = CharacterImage;
         MascotMenu.IsOpen = true;
         e.Handled = true;
+    }
+
+    private void RestoreWindowPosition()
+    {
+        if (_settings.WindowLeft is double left && _settings.WindowTop is double top)
+        {
+            SetWindowPositionClamped(left, top);
+            return;
+        }
+
+        var bounds = _monitorService.GetVirtualDesktopBounds();
+        SetWindowPositionClamped(bounds.Left, bounds.Bottom - Height - 20);
+    }
+
+    private void SetWindowPositionClamped(double left, double top)
+    {
+        var bounds = _monitorService.GetVirtualDesktopBounds();
+        var visibleMargin = 20.0;
+        var width = ActualWidth > 0 ? ActualWidth : Width;
+        var height = ActualHeight > 0 ? ActualHeight : Height;
+        var minLeft = bounds.Left - width + visibleMargin;
+        var maxLeft = bounds.Right - visibleMargin;
+        var minTop = bounds.Top - height + visibleMargin;
+        var maxTop = bounds.Bottom - visibleMargin;
+        Left = Math.Clamp(left, minLeft, maxLeft);
+        Top = Math.Clamp(top, minTop, maxTop);
+    }
+
+    private void SaveWindowPosition()
+    {
+        _settings.WindowLeft = Left;
+        _settings.WindowTop = Top;
+        _settingsService.Save(_settings);
     }
 
     private void MascotMenu_Opened(object sender, RoutedEventArgs e)

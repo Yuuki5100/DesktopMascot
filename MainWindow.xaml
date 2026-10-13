@@ -19,6 +19,8 @@
                HorizontalAlignment="Stretch"
                VerticalAlignment="Stretch"
                SnapsToDevicePixels="True"
+               MouseLeftButtonDown="CharacterImage_MouseLeftButtonDown"
+               MouseMove="CharacterImage_MouseMove"
                MouseLeftButtonUp="CharacterImage_MouseLeftButtonUp">
             <Image.ContextMenu>
                 <ContextMenu x:Name="MascotMenu"
