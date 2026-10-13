@@ -19,14 +19,18 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
     private bool _eyesClosed;
     private bool _fastPhase;
 
+    public bool IsRunning => _timer.IsEnabled;
+
     public AiHayatoIdleAnimationService(Action<ImageSource> setImage)
     {
         _setImage = setImage;
         _openImage = LoadImage("hayato-wakeup.png");
         _closedImage = LoadImage("hayato-sleep.png");
-        _timer = new DispatcherTimer(DispatcherPriority.Background);
+        _timer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher.CurrentDispatcher);
         _timer.Tick += OnTick;
         ResetCycle();
+        Log("AiHayato open image loaded: hayato-wakeup.png");
+        Log("AiHayato closed image loaded: hayato-sleep.png");
     }
 
     public ImageSource OpenImage => _openImage;
@@ -35,15 +39,24 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
     {
         ResetCycle();
         _timer.Start();
+        Log("AiHayato Idle animation start");
     }
 
     public void Pause() => _timer.Stop();
-    public void Resume() => _timer.Start();
+    public void Resume()
+    {
+        if (!_timer.IsEnabled)
+        {
+            _timer.Start();
+            Log("AiHayato Idle animation resume");
+        }
+    }
 
     public void Stop()
     {
         _timer.Stop();
         ResetCycle();
+        Log("AiHayato Idle animation stop");
     }
 
     private void ResetCycle()
@@ -61,12 +74,14 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
         if (!_eyesClosed)
         {
             _setImage(_closedImage);
+            Log("AiHayato eyes: CLOSED");
             _eyesClosed = true;
             _timer.Interval = ClosedDuration;
             return;
         }
 
         _setImage(_openImage);
+        Log("AiHayato eyes: OPEN");
         _eyesClosed = false;
         if (!_fastPhase)
         {
@@ -108,7 +123,32 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
             or NotSupportedException or ArgumentException or InvalidOperationException
             or System.Runtime.InteropServices.COMException)
         {
+            Log($"AI Hayato idle image could not be loaded: {path}");
             return CreateTransparentFallback();
+        }
+    }
+
+    private static void Log(string message)
+    {
+        System.Diagnostics.Debug.WriteLine(message);
+        Console.WriteLine(message);
+        try
+        {
+            var directory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "DesktopMascot");
+            Directory.CreateDirectory(directory);
+            File.AppendAllText(
+                Path.Combine(directory, "debug.log"),
+                $"{DateTime.Now:O} {message}{Environment.NewLine}");
+        }
+        catch (IOException)
+        {
+            // Diagnostics must never affect animation.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Diagnostics must never affect animation.
         }
     }
 

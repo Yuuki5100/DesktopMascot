@@ -23,7 +23,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _characterService = new CharacterService();
         _aiHayatoIdleAnimationService = new AiHayatoIdleAnimationService(
-            frame => CharacterImage.Source = frame);
+            SetCharacterImage);
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -38,9 +38,9 @@ public partial class MainWindow : Window
             _settingsService.Save(_settings);
         }
 
-        CharacterImage.Source = _characterService.CurrentCharacter == CharacterType.AiHayato
+        SetCharacterImage(_characterService.CurrentCharacter == CharacterType.AiHayato
             ? _aiHayatoIdleAnimationService.OpenImage
-            : _spriteService.GetCurrentFrame();
+            : _spriteService.GetCurrentFrame());
         Width = CharacterWidth;
         if (CharacterImage.Source is System.Windows.Media.Imaging.BitmapSource frame)
         {
@@ -49,7 +49,7 @@ public partial class MainWindow : Window
 
         _animationService = new SpriteAnimationService(
             _spriteService,
-            frame => CharacterImage.Source = frame);
+            SetCharacterImage);
         _movementService = new MovementService(this, _monitorService);
         _movementService.DirectionChanged += _animationService.SetDirection;
 
@@ -157,7 +157,7 @@ public partial class MainWindow : Window
         _settings.CharacterType = CharacterType.AiHayato.ToString();
         _settingsService.Save(_settings);
         ApplyCharacterMenuState();
-        CharacterImage.Source = _aiHayatoIdleAnimationService.OpenImage;
+        SetCharacterImage(_aiHayatoIdleAnimationService.OpenImage);
         ApplyAnimationMode(ParseAnimationMode(_settings.AnimationMode), startMovement: false);
     }
 
@@ -167,7 +167,7 @@ public partial class MainWindow : Window
         _settings.CharacterType = CharacterType.Pompompurin.ToString();
         _settingsService.Save(_settings);
         ApplyCharacterMenuState();
-        CharacterImage.Source = _spriteService.GetCurrentFrame();
+        SetCharacterImage(_spriteService.GetCurrentFrame());
         ApplyAnimationMode(ParseAnimationMode(_settings.AnimationMode), startMovement: false);
 
         // Existing sprite assets are the Pompompurin character assets.
@@ -188,7 +188,7 @@ public partial class MainWindow : Window
         {
             if (_characterService.CurrentCharacter == CharacterType.AiHayato)
             {
-                _aiHayatoIdleAnimationService.Resume();
+                StartAiHayatoIdleAnimation(resume: true);
             }
 
             return;
@@ -224,7 +224,7 @@ public partial class MainWindow : Window
                 // AIハヤトのWalk素材が追加されるまでは、キャラクターを保ったまま静止画で待機する。
                 _animationService.Pause();
                 _movementService.Pause();
-                CharacterImage.Source = _aiHayatoIdleAnimationService.OpenImage;
+                SetCharacterImage(_aiHayatoIdleAnimationService.OpenImage);
                 WalkAnimationMenuItem.IsChecked = true;
                 IdleAnimationMenuItem.IsChecked = false;
                 return;
@@ -245,7 +245,7 @@ public partial class MainWindow : Window
         _movementService.Pause();
         if (_characterService.CurrentCharacter == CharacterType.AiHayato)
         {
-            _aiHayatoIdleAnimationService.Start();
+            StartAiHayatoIdleAnimation();
         }
         else
         {
@@ -253,6 +253,31 @@ public partial class MainWindow : Window
         }
         WalkAnimationMenuItem.IsChecked = false;
         IdleAnimationMenuItem.IsChecked = true;
+    }
+
+    private void StartAiHayatoIdleAnimation(bool resume = false)
+    {
+        if (_characterService.CurrentCharacter != CharacterType.AiHayato
+            || _animationService?.CurrentMode != AnimationMode.Idle)
+        {
+            return;
+        }
+
+        if (resume)
+        {
+            _aiHayatoIdleAnimationService.Resume();
+        }
+        else
+        {
+            _aiHayatoIdleAnimationService.Start();
+        }
+    }
+
+    private void SetCharacterImage(System.Windows.Media.ImageSource image)
+    {
+        CharacterImage.Source = image;
+        System.Diagnostics.Debug.WriteLine(
+            $"CharacterImage.Source updated: {System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(image)}");
     }
 
     private void SaveAnimationMode(AnimationMode mode)
