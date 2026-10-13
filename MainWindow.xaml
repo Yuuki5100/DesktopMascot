@@ -1,0 +1,39 @@
+<Window x:Class="DesktopMascot.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DesktopMascot"
+        Width="128"
+        Height="128"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Focusable="False"
+        Loaded="Window_Loaded"
+        Closed="Window_Closed">
+    <Grid Background="Transparent">
+        <Image x:Name="CharacterImage"
+               Stretch="Uniform"
+               HorizontalAlignment="Stretch"
+               VerticalAlignment="Stretch"
+               SnapsToDevicePixels="True"
+               MouseLeftButtonUp="CharacterImage_MouseLeftButtonUp">
+            <Image.ContextMenu>
+                <ContextMenu x:Name="MascotMenu"
+                             Opened="MascotMenu_Opened"
+                             Closed="MascotMenu_Closed">
+                    <MenuItem Header="Edge起動" Click="LaunchEdge_Click" />
+                    <MenuItem Header="VS Code起動" Click="LaunchVsCode_Click" />
+                    <MenuItem Header="WezTerm起動" Click="LaunchWezTerm_Click" />
+                    <Separator />
+                    <MenuItem Header="VS Codeキャッシュ削除" Click="ClearVsCodeCache_Click" />
+                    <MenuItem Header="Teamsキャッシュ削除" Click="ClearTeamsCache_Click" />
+                    <Separator />
+                    <MenuItem Header="DesktopMascot停止" Click="ExitMascot_Click" />
+                </ContextMenu>
+            </Image.ContextMenu>
+        </Image>
+    </Grid>
+</Window>
