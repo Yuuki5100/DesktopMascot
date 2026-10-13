@@ -48,7 +48,7 @@ public sealed class MovementService : IDisposable
 
     public void Resume()
     {
-        if (!_paused)
+        if (_timer.IsEnabled)
         {
             return;
         }

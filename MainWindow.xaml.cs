@@ -9,10 +9,12 @@ public partial class MainWindow : Window
     private const double CharacterWidth = 128;
     private readonly MonitorService _monitorService = new();
     private readonly CharacterSpriteService _spriteService = new();
+    private readonly SettingsService _settingsService = new();
     private readonly ApplicationLauncherService _launcherService = new();
     private readonly CacheCleanupService _cacheCleanupService = new();
     private MovementService? _movementService;
     private SpriteAnimationService? _animationService;
+    private AppSettings _settings = new();
 
     public MainWindow()
     {
@@ -21,6 +23,9 @@ public partial class MainWindow : Window
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
+        _settings = _settingsService.Load();
+        var animationMode = ParseAnimationMode(_settings.AnimationMode);
+
         CharacterImage.Source = _spriteService.GetCurrentFrame();
         Width = CharacterWidth;
         if (CharacterImage.Source is System.Windows.Media.Imaging.BitmapSource frame)
@@ -34,8 +39,7 @@ public partial class MainWindow : Window
         _movementService = new MovementService(this, _monitorService);
         _movementService.DirectionChanged += _animationService.SetDirection;
 
-        _movementService.Start();
-        _animationService.Resume();
+        ApplyAnimationMode(animationMode, startMovement: true);
     }
 
     private void Window_Closed(object? sender, EventArgs e)
@@ -65,8 +69,7 @@ public partial class MainWindow : Window
 
     private void MascotMenu_Closed(object sender, RoutedEventArgs e)
     {
-        _movementService?.Resume();
-        _animationService?.Resume();
+        ResumeCurrentAnimationMode();
     }
 
     private void LaunchEdge_Click(object sender, RoutedEventArgs e)
@@ -109,6 +112,76 @@ public partial class MainWindow : Window
 
         ShowCleanupResult(_cacheCleanupService.ClearTeamsCache(), "Teams");
     }
+
+    private void IdleAnimationMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        IdleAnimationMenuItem.IsChecked = true;
+        WalkAnimationMenuItem.IsChecked = false;
+
+        ApplyAnimationMode(AnimationMode.Idle, startMovement: false);
+        SaveAnimationMode(AnimationMode.Idle);
+        _movementService?.Pause();
+
+        // TODO: 後で待機アニメーションを紐づける
+    }
+
+    private void WalkAnimationMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        IdleAnimationMenuItem.IsChecked = false;
+        WalkAnimationMenuItem.IsChecked = true;
+
+        ApplyAnimationMode(AnimationMode.Walk, startMovement: true);
+        SaveAnimationMode(AnimationMode.Walk);
+    }
+
+    private void ResumeCurrentAnimationMode()
+    {
+        if (_animationService?.CurrentMode != AnimationMode.Walk)
+        {
+            return;
+        }
+
+        _movementService?.Resume();
+        _animationService.StartWalk();
+    }
+
+    private void ApplyAnimationMode(AnimationMode mode, bool startMovement)
+    {
+        if (_animationService is null || _movementService is null)
+        {
+            return;
+        }
+
+        if (mode == AnimationMode.Walk)
+        {
+            _animationService.StartWalk();
+            if (startMovement)
+            {
+                _movementService.Resume();
+            }
+
+            WalkAnimationMenuItem.IsChecked = true;
+            IdleAnimationMenuItem.IsChecked = false;
+            return;
+        }
+
+        _animationService.StartIdle();
+        _movementService.Pause();
+        WalkAnimationMenuItem.IsChecked = false;
+        IdleAnimationMenuItem.IsChecked = true;
+    }
+
+    private void SaveAnimationMode(AnimationMode mode)
+    {
+        _settings.AnimationMode = mode.ToString();
+        _settingsService.Save(_settings);
+    }
+
+    private static AnimationMode ParseAnimationMode(string? value)
+        => Enum.TryParse<AnimationMode>(value, ignoreCase: true, out var mode)
+            && Enum.IsDefined(mode)
+            ? mode
+            : AnimationMode.Walk;
 
     private static bool Confirm(string message)
         => MessageBox.Show(

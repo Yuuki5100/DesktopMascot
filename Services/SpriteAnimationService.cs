@@ -11,6 +11,8 @@ public sealed class SpriteAnimationService : IDisposable
     private readonly Action<ImageSource> _setImage;
     private readonly DispatcherTimer _timer;
 
+    public AnimationMode CurrentMode { get; private set; } = AnimationMode.Walk;
+
     public SpriteAnimationService(CharacterSpriteService sprites, Action<ImageSource> setImage)
     {
         _sprites = sprites;
@@ -19,9 +21,34 @@ public sealed class SpriteAnimationService : IDisposable
         _timer.Tick += OnTick;
     }
 
+    public void SetMode(AnimationMode mode)
+    {
+        CurrentMode = mode;
+        if (mode == AnimationMode.Idle)
+        {
+            Stop();
+        }
+    }
+
+    public void StartWalk()
+    {
+        SetMode(AnimationMode.Walk);
+        Resume();
+    }
+
+    public void StartIdle()
+    {
+        SetMode(AnimationMode.Idle);
+    }
+
     public void Resume() => _timer.Start();
 
     public void Pause() => _timer.Stop();
+
+    public void Stop()
+    {
+        _timer.Stop();
+    }
 
     public void SetDirection(Direction direction)
     {

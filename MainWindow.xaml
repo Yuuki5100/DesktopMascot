@@ -31,6 +31,20 @@
                     <MenuItem Header="VS Codeキャッシュ削除" Click="ClearVsCodeCache_Click" />
                     <MenuItem Header="Teamsキャッシュ削除" Click="ClearTeamsCache_Click" />
                     <Separator />
+                    <MenuItem Header="設定">
+                        <MenuItem Header="アニメーション">
+                            <MenuItem x:Name="IdleAnimationMenuItem"
+                                      Header="待機"
+                                      IsCheckable="True"
+                                      Click="IdleAnimationMenuItem_Click" />
+                            <MenuItem x:Name="WalkAnimationMenuItem"
+                                      Header="歩く"
+                                      IsCheckable="True"
+                                      IsChecked="True"
+                                      Click="WalkAnimationMenuItem_Click" />
+                        </MenuItem>
+                    </MenuItem>
+                    <Separator />
                     <MenuItem Header="DesktopMascot停止" Click="ExitMascot_Click" />
                 </ContextMenu>
             </Image.ContextMenu>

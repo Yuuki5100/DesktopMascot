@@ -88,6 +88,16 @@ Assets/character-left.png
 
 ## キャッシュ削除対象
 
+## 設定ファイル
+
+最後に選択したアニメーションモードは、次のユーザーごとの設定ファイルに保存されます。
+
+```text
+%LocalAppData%\DesktopMascot\settings.json
+```
+
+設定ファイルがない場合や内容が壊れている場合は、`Walk`（歩く）で起動します。
+
 VS Code:
 
 ```text
