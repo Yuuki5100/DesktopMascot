@@ -13,6 +13,7 @@ public sealed class MovementService : IDisposable
 
     private readonly Window _window;
     private readonly MonitorService _monitorService;
+    private readonly double _characterWidth;
     private readonly DispatcherTimer _timer;
     private Direction _direction = Direction.Right;
     private bool _paused;
@@ -21,10 +22,12 @@ public sealed class MovementService : IDisposable
 
     public MovementService(
         Window window,
-        MonitorService monitorService)
+        MonitorService monitorService,
+        double characterWidth)
     {
         _window = window;
         _monitorService = monitorService;
+        _characterWidth = characterWidth;
         _timer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TickInterval
@@ -65,8 +68,9 @@ public sealed class MovementService : IDisposable
         }
 
         var bounds = _monitorService.GetVirtualDesktopBounds();
-        var minX = bounds.Left;
-        var maxX = bounds.Right - _window.ActualWidth;
+        var characterOffset = GetCharacterHorizontalOffset();
+        var minX = bounds.Left - characterOffset;
+        var maxX = bounds.Right - characterOffset - _characterWidth;
 
         var nextLeft = _window.Left + (_direction == Direction.Right ? PixelsPerTick : -PixelsPerTick);
 
@@ -99,16 +103,23 @@ public sealed class MovementService : IDisposable
     private void PlaceNearBottom()
     {
         var bounds = _monitorService.GetVirtualDesktopBounds();
-        var width = _window.ActualWidth > 0 ? _window.ActualWidth : _window.Width;
         var height = _window.ActualHeight > 0 ? _window.ActualHeight : _window.Height;
-        var maxX = bounds.Right - width;
+        var characterOffset = GetCharacterHorizontalOffset();
+        var minX = bounds.Left - characterOffset;
+        var maxX = bounds.Right - characterOffset - _characterWidth;
 
-        if (double.IsNaN(_window.Left) || _window.Left < bounds.Left || _window.Left > maxX)
+        if (double.IsNaN(_window.Left) || _window.Left < minX || _window.Left > maxX)
         {
-            _window.Left = Math.Max(bounds.Left, Math.Min(0, maxX));
+            _window.Left = Math.Max(minX, Math.Min(0, maxX));
         }
 
         _window.Top = bounds.Bottom - height - BottomMargin;
+    }
+
+    private double GetCharacterHorizontalOffset()
+    {
+        var width = _window.ActualWidth > 0 ? _window.ActualWidth : _window.Width;
+        return Math.Max(0, (width - _characterWidth) / 2);
     }
 
     private void OnDisplaySettingsChanged(object? sender, EventArgs e)

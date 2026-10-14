@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using DesktopMascot.Services;
@@ -8,6 +9,8 @@ namespace DesktopMascot;
 public partial class MainWindow : Window
 {
     private const double CharacterWidth = 128;
+    private const double WindowWidth = 220;
+    private const double SpeechBubbleAreaHeight = 48;
     private readonly MonitorService _monitorService = new();
     private readonly CharacterSpriteService _spriteService = new();
     private readonly CharacterService _characterService;
@@ -31,7 +34,6 @@ public partial class MainWindow : Window
         _aiHayatoIdleAnimationService = new AiHayatoIdleAnimationService(
             SetCharacterImage);
         _settings = _settingsService.Load();
-        RestoreWindowPosition();
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -48,16 +50,26 @@ public partial class MainWindow : Window
         SetCharacterImage(_characterService.CurrentCharacter == CharacterType.AiHayato
             ? _aiHayatoIdleAnimationService.OpenImage
             : _spriteService.GetCurrentFrame());
-        Width = CharacterWidth;
+        Width = WindowWidth;
+        double characterHeight;
         if (CharacterImage.Source is System.Windows.Media.Imaging.BitmapSource frame)
         {
-            Height = CharacterWidth * frame.PixelHeight / frame.PixelWidth;
+            characterHeight = CharacterWidth * frame.PixelHeight / frame.PixelWidth;
         }
+        else
+        {
+            characterHeight = CharacterWidth;
+        }
+
+        CharacterImage.Height = characterHeight;
+        Height = characterHeight + SpeechBubbleAreaHeight;
+        ShowSpeechBubble("こんにちは");
+        RestoreWindowPosition();
 
         _animationService = new SpriteAnimationService(
             _spriteService,
             SetCharacterImage);
-        _movementService = new MovementService(this, _monitorService);
+        _movementService = new MovementService(this, _monitorService, CharacterWidth);
         _movementService.DirectionChanged += _animationService.SetDirection;
 
         ApplyCharacterMenuState();
@@ -85,7 +97,7 @@ public partial class MainWindow : Window
         LogDrag("Idle = true");
         _mouseDownForDrag = true;
         _isDragging = false;
-        _dragStartScreenPosition = Mouse.GetPosition(null);
+        _dragStartScreenPosition = GetCursorPositionOnDesktop();
         _dragStartWindowLeft = Left;
         _dragStartWindowTop = Top;
         CharacterImage.CaptureMouse();
@@ -100,7 +112,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var currentScreenPosition = Mouse.GetPosition(null);
+        var currentScreenPosition = GetCursorPositionOnDesktop();
         var deltaX = currentScreenPosition.X - _dragStartScreenPosition.X;
         var deltaY = currentScreenPosition.Y - _dragStartScreenPosition.Y;
         LogDrag($"MouseMove dx={deltaX:0.0} dy={deltaY:0.0}");
@@ -111,8 +123,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        _isDragging = true;
-        LogDrag("Start");
+        if (!_isDragging)
+        {
+            _isDragging = true;
+            LogDrag("Start");
+            _animationService?.Pause();
+            _aiHayatoIdleAnimationService.Pause();
+        }
+
         SetWindowPositionClamped(_dragStartWindowLeft + deltaX, _dragStartWindowTop + deltaY);
         e.Handled = true;
     }
@@ -131,6 +149,7 @@ public partial class MainWindow : Window
         if (wasDragging)
         {
             SaveWindowPosition();
+            _aiHayatoIdleAnimationService.Resume();
             EnsureAiHayatoIdleAnimationRunning();
             System.Diagnostics.Debug.WriteLine("[Drag] End");
             e.Handled = true;
@@ -151,7 +170,9 @@ public partial class MainWindow : Window
     {
         if (_settings.WindowLeft is double left && _settings.WindowTop is double top)
         {
-            SetWindowPositionClamped(left, top);
+            SetWindowPositionClamped(
+                left - GetCharacterHorizontalOffset(),
+                top - SpeechBubbleAreaHeight);
             return;
         }
 
@@ -169,18 +190,56 @@ public partial class MainWindow : Window
         var maxLeft = bounds.Right - visibleMargin;
         var minTop = bounds.Top - height + visibleMargin;
         var maxTop = bounds.Bottom - visibleMargin;
-        Left = Math.Clamp(left, minLeft, maxLeft);
-        Top = Math.Clamp(top, minTop, maxTop);
+        var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+        Left = Math.Round(Math.Clamp(left, minLeft, maxLeft) * dpi.DpiScaleX) / dpi.DpiScaleX;
+        Top = Math.Round(Math.Clamp(top, minTop, maxTop) * dpi.DpiScaleY) / dpi.DpiScaleY;
         LogDrag($"Window Left={Left:0.0} Top={Top:0.0}");
+    }
+
+    private Point GetCursorPositionOnDesktop()
+    {
+        if (!GetCursorPos(out var cursorPosition))
+        {
+            return Mouse.GetPosition(null);
+        }
+
+        var positionInWindow = PointFromScreen(new Point(cursorPosition.X, cursorPosition.Y));
+        return new Point(Left + positionInWindow.X, Top + positionInWindow.Y);
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out NativePoint point);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X;
+        public int Y;
     }
 
     private void SaveWindowPosition()
     {
-        _settings.WindowLeft = Left;
-        _settings.WindowTop = Top;
+        _settings.WindowLeft = Left + GetCharacterHorizontalOffset();
+        _settings.WindowTop = Top + SpeechBubbleAreaHeight;
         _settingsService.Save(_settings);
         LogDrag("Saved position");
     }
+
+    private double GetCharacterHorizontalOffset()
+        => Math.Max(0, ((ActualWidth > 0 ? ActualWidth : Width) - CharacterWidth) / 2);
+
+    public void ShowSpeechBubble(string message)
+    {
+        SetSpeechText(message);
+        SpeechBubblePanel.Visibility = Visibility.Visible;
+    }
+
+    public void HideSpeechBubble()
+        => SpeechBubblePanel.Visibility = Visibility.Collapsed;
+
+    public void SetSpeechText(string message)
+        => SpeechText.Text = message;
 
     private static void LogDrag(string message)
     {

@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="DesktopMascot"
-        Width="128"
-        Height="128"
+        Width="220"
+        Height="176"
         WindowStyle="None"
         ResizeMode="NoResize"
         AllowsTransparency="True"
@@ -14,9 +14,43 @@
         Loaded="Window_Loaded"
         Closed="Window_Closed">
     <Grid Background="Transparent">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel x:Name="SpeechBubblePanel"
+                    Grid.Row="0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed">
+            <Border Background="White"
+                    BorderBrush="#444444"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Padding="10,6"
+                    MaxWidth="200">
+                <TextBlock x:Name="SpeechText"
+                           Foreground="#222222"
+                           FontSize="14"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center" />
+            </Border>
+            <Polygon Points="0,0 12,0 6,7"
+                     Width="12"
+                     Height="7"
+                     HorizontalAlignment="Center"
+                     Fill="White"
+                     Stroke="#444444"
+                     StrokeThickness="1" />
+        </StackPanel>
+
         <Image x:Name="CharacterImage"
+               Grid.Row="1"
                Stretch="Uniform"
-               HorizontalAlignment="Stretch"
+               Width="128"
+               HorizontalAlignment="Center"
                VerticalAlignment="Stretch"
                SnapsToDevicePixels="True"
                IsHitTestVisible="True"
