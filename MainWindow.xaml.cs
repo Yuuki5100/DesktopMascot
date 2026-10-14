@@ -2,6 +2,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media.Animation;
 using DesktopMascot.Services;
 
 namespace DesktopMascot;
@@ -11,6 +12,14 @@ public partial class MainWindow : Window
     private const double CharacterWidth = 128;
     private const double WindowWidth = 220;
     private const double SpeechBubbleAreaHeight = 48;
+    private const double StatusOptionsAreaHeight = 112;
+    private static readonly TimeSpan StatusOptionsFadeDuration = TimeSpan.FromMilliseconds(200);
+    private static readonly string[] StatusMessages =
+    {
+        "お手洗い中",
+        "お昼休み中",
+        "予備コメント"
+    };
     private readonly MonitorService _monitorService = new();
     private readonly CharacterSpriteService _spriteService = new();
     private readonly CharacterService _characterService;
@@ -26,6 +35,9 @@ public partial class MainWindow : Window
     private double _dragStartWindowTop;
     private bool _mouseDownForDrag;
     private bool _isDragging;
+    private bool _statusOptionsAreOpen;
+    private bool _statusOptionsAreaExpanded;
+    private double _baseWindowHeight;
 
     public MainWindow()
     {
@@ -63,7 +75,9 @@ public partial class MainWindow : Window
 
         CharacterImage.Height = characterHeight;
         Height = characterHeight + SpeechBubbleAreaHeight;
-        ShowSpeechBubble("こんにちは");
+        _baseWindowHeight = Height;
+        StatusOptionsList.ItemsSource = StatusMessages;
+        ShowSpeechBubble(_settings.SpeechMessage);
         RestoreWindowPosition();
 
         _animationService = new SpriteAnimationService(
@@ -239,7 +253,105 @@ public partial class MainWindow : Window
         => SpeechBubblePanel.Visibility = Visibility.Collapsed;
 
     public void SetSpeechText(string message)
-        => SpeechText.Text = message;
+    {
+        SpeechText.Text = message;
+        if (!string.Equals(_settings.SpeechMessage, message, StringComparison.Ordinal))
+        {
+            _settings.SpeechMessage = message;
+            _settingsService.Save(_settings);
+        }
+    }
+
+    private void SpeechBubble_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        ToggleStatusOptions();
+    }
+
+    private void StatusOption_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if ((sender as FrameworkElement)?.Tag is string message)
+        {
+            SelectStatusMessage(message);
+        }
+    }
+
+    private void ToggleStatusOptions()
+    {
+        if (_statusOptionsAreOpen)
+        {
+            HideStatusOptions();
+        }
+        else
+        {
+            ShowStatusOptions();
+        }
+    }
+
+    private void ShowStatusOptions()
+    {
+        _statusOptionsAreOpen = true;
+        SetStatusOptionsAreaExpanded(true);
+        StatusOptionsPanel.Visibility = Visibility.Visible;
+        _movementService?.Pause();
+
+        var animation = new DoubleAnimation(
+            StatusOptionsPanel.Opacity,
+            1,
+            StatusOptionsFadeDuration);
+        StatusOptionsPanel.BeginAnimation(UIElement.OpacityProperty, animation);
+    }
+
+    private void HideStatusOptions()
+    {
+        if (!_statusOptionsAreOpen)
+        {
+            return;
+        }
+
+        _statusOptionsAreOpen = false;
+        var animation = new DoubleAnimation(
+            StatusOptionsPanel.Opacity,
+            0,
+            StatusOptionsFadeDuration);
+        animation.Completed += (_, _) =>
+        {
+            if (_statusOptionsAreOpen)
+            {
+                return;
+            }
+
+            StatusOptionsPanel.BeginAnimation(UIElement.OpacityProperty, null);
+            StatusOptionsPanel.Opacity = 0;
+            StatusOptionsPanel.Visibility = Visibility.Collapsed;
+            SetStatusOptionsAreaExpanded(false);
+            ResumeCurrentAnimationMode();
+            EnsureAiHayatoIdleAnimationRunning();
+        };
+        StatusOptionsPanel.BeginAnimation(UIElement.OpacityProperty, animation);
+    }
+
+    private void SelectStatusMessage(string message)
+    {
+        SetSpeechText(message);
+        HideStatusOptions();
+    }
+
+    private void SetStatusOptionsAreaExpanded(bool expanded)
+    {
+        if (_statusOptionsAreaExpanded == expanded)
+        {
+            return;
+        }
+
+        _statusOptionsAreaExpanded = expanded;
+        var height = expanded ? StatusOptionsAreaHeight : 0;
+        StatusOptionsRow.Height = new GridLength(height);
+        Height = _baseWindowHeight + height;
+        UpdateLayout();
+        SetWindowPositionClamped(Left, Top + (expanded ? -height : height));
+    }
 
     private static void LogDrag(string message)
     {
@@ -355,6 +467,12 @@ public partial class MainWindow : Window
 
     private void ResumeCurrentAnimationMode()
     {
+        if (_statusOptionsAreOpen)
+        {
+            _movementService?.Pause();
+            return;
+        }
+
         if (_animationService?.CurrentMode != AnimationMode.Walk)
         {
             if (_characterService.CurrentCharacter == CharacterType.AiHayato)
@@ -402,7 +520,7 @@ public partial class MainWindow : Window
             }
 
             _animationService.StartWalk();
-            if (startMovement)
+            if (startMovement && !_statusOptionsAreOpen)
             {
                 _movementService.Resume();
             }

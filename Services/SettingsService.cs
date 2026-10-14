@@ -37,6 +37,7 @@ public sealed class SettingsService
             }
 
             settings.AnimationMode = mode.ToString();
+            settings.SpeechMessage ??= "こんにちは";
             return settings;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
