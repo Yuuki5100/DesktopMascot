@@ -10,9 +10,9 @@ namespace DesktopMascot;
 public partial class MainWindow : Window
 {
     private const double CharacterWidth = 128;
-    private const double WindowWidth = 220;
+    private const double WindowWidth = 320;
     private const double SpeechBubbleAreaHeight = 48;
-    private const double StatusOptionsAreaHeight = 112;
+    private const double StatusOptionsAreaHeight = 38;
     private static readonly TimeSpan StatusOptionsFadeDuration = TimeSpan.FromMilliseconds(200);
     private static readonly string[] StatusMessages =
     {
