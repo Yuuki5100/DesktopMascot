@@ -381,6 +381,12 @@ public partial class MainWindow : Window
     private void LaunchWezTerm_Click(object sender, RoutedEventArgs e)
         => LaunchApplication(_launcherService.LaunchWezTerm(), "WezTerm");
 
+    private void CompactWslDisk_Click(object sender, RoutedEventArgs e)
+        => LaunchApplication(_launcherService.LaunchCompactWslDisk(), "WSLディスク圧縮");
+
+    private void RemoveStaleWorktree_Click(object sender, RoutedEventArgs e)
+        => LaunchApplication(_launcherService.LaunchRemoveStaleWorktree(), "worktree削除");
+
     private static void LaunchApplication(LaunchResult result, string displayName)
     {
         if (!result.Success)

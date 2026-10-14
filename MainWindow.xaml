@@ -114,6 +114,8 @@
                     <Separator />
                     <MenuItem Header="VS Codeキャッシュ削除" Click="ClearVsCodeCache_Click" />
                     <MenuItem Header="Teamsキャッシュ削除" Click="ClearTeamsCache_Click" />
+                    <MenuItem Header="wslディスク圧縮" Click="CompactWslDisk_Click" />
+                    <MenuItem Header="wslのworktree削除" Click="RemoveStaleWorktree_Click" />
                     <Separator />
                     <MenuItem Header="設定">
                         <MenuItem Header="アニメーション">

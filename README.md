@@ -44,6 +44,8 @@ dotnet run
   - WezTerm起動
   - VS Codeキャッシュ削除
   - Teamsキャッシュ削除
+  - wslディスク圧縮（`script/volume-clear-code/Compact-WslDisk.ps1` を管理者権限で実行）
+  - wslのworktree削除（`script/volume-clear-code/Remove-StaleWorktree.ps1` を実行）
   - DesktopMascot停止（確認あり）
 - メニュー表示中は移動・アニメーション停止
 - ディスプレイ構成変更追従

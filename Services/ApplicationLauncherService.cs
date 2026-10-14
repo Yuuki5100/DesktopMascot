@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.IO;
 using System.Diagnostics;
 
@@ -34,6 +35,60 @@ public sealed class ApplicationLauncherService
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WezTerm", "wezterm-gui.exe"),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "WezTerm", "wezterm-gui.exe")
             });
+
+    public LaunchResult LaunchCompactWslDisk()
+        => LaunchPowerShellScript("Compact-WslDisk.ps1", runAsAdministrator: true);
+
+    public LaunchResult LaunchRemoveStaleWorktree()
+        => LaunchPowerShellScript("Remove-StaleWorktree.ps1", runAsAdministrator: false);
+
+    private static LaunchResult LaunchPowerShellScript(string scriptName, bool runAsAdministrator)
+    {
+        var scriptPath = FindScript(Path.Combine("script", "volume-clear-code", scriptName));
+        if (scriptPath is null)
+        {
+            return new LaunchResult(false, $"{scriptName} が見つかりませんでした。");
+        }
+
+        try
+        {
+            // スクリプト側で yes/no の確認や Enter 待ちを行うため、コンソールを表示して起動する
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
+                UseShellExecute = true,
+                Verb = runAsAdministrator ? "runas" : string.Empty
+            });
+
+            return new LaunchResult(true);
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == ErrorCancelled)
+        {
+            return new LaunchResult(false, "管理者権限での実行がキャンセルされました。");
+        }
+        catch (Exception ex)
+        {
+            return new LaunchResult(false, ex.Message);
+        }
+    }
+
+    private static string? FindScript(string relativePath)
+    {
+        // dotnet run では bin 配下から起動されるため、親フォルダをたどってリポジトリ内のスクリプトを探す
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            var candidate = Path.Combine(dir.FullName, relativePath);
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private const int ErrorCancelled = 1223;
 
     private static LaunchResult LaunchFirstAvailable(IEnumerable<string> candidates)
     {
