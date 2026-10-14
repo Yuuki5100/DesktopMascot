@@ -87,6 +87,7 @@ public partial class MainWindow : Window
             _spriteService,
             SetCharacterImage);
         _movementService = new MovementService(this, _monitorService, CharacterWidth);
+        _movementService.AlwaysMoveLeft = _characterService.CurrentCharacter == CharacterType.AiHayato;
         _movementService.DirectionChanged += _animationService.SetDirection;
 
         ApplyCharacterMenuState();
@@ -447,6 +448,10 @@ public partial class MainWindow : Window
     private void AiHayatoCharacterMenuItem_Click(object sender, RoutedEventArgs e)
     {
         _characterService.SetCharacter(CharacterType.AiHayato);
+        if (_movementService is not null)
+        {
+            _movementService.AlwaysMoveLeft = true;
+        }
         _settings.CharacterType = CharacterType.AiHayato.ToString();
         _settingsService.Save(_settings);
         ApplyCharacterMenuState();
@@ -457,6 +462,10 @@ public partial class MainWindow : Window
     private void PompompurinCharacterMenuItem_Click(object sender, RoutedEventArgs e)
     {
         _characterService.SetCharacter(CharacterType.Pompompurin);
+        if (_movementService is not null)
+        {
+            _movementService.AlwaysMoveLeft = false;
+        }
         _settings.CharacterType = CharacterType.Pompompurin.ToString();
         _settingsService.Save(_settings);
         ApplyCharacterMenuState();
@@ -585,6 +594,16 @@ public partial class MainWindow : Window
         if (!CharacterImage.Dispatcher.CheckAccess())
         {
             CharacterImage.Dispatcher.Invoke(() => SetCharacterImage(image));
+            return;
+        }
+
+        // The idle blink timer can have a queued tick when walk mode starts.
+        // Do not let that stale tick put a building image into the walk animation.
+        if (_characterService.CurrentCharacter == CharacterType.AiHayato
+            && _animationService?.CurrentMode != AnimationMode.Idle
+            && (ReferenceEquals(image, _aiHayatoIdleAnimationService.OpenImage)
+                || ReferenceEquals(image, _aiHayatoIdleAnimationService.ClosedImage)))
+        {
             return;
         }
 

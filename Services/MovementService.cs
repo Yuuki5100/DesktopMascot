@@ -18,6 +18,8 @@ public sealed class MovementService : IDisposable
     private Direction _direction = Direction.Right;
     private bool _paused;
 
+    public bool AlwaysMoveLeft { get; set; }
+
     public event Action<Direction>? DirectionChanged;
 
     public MovementService(
@@ -72,7 +74,23 @@ public sealed class MovementService : IDisposable
         var minX = bounds.Left - characterOffset;
         var maxX = bounds.Right - characterOffset - _characterWidth;
 
-        var nextLeft = _window.Left + (_direction == Direction.Right ? PixelsPerTick : -PixelsPerTick);
+        var nextLeft = _window.Left - PixelsPerTick;
+
+        if (AlwaysMoveLeft)
+        {
+            // AI-hayato always walks to the left. Wrap around so the walk
+            // continues instead of turning around at the screen edge.
+            if (nextLeft <= minX)
+            {
+                nextLeft = maxX;
+            }
+
+            _window.Left = nextLeft;
+            _window.Top = bounds.Bottom - _window.ActualHeight - BottomMargin;
+            return;
+        }
+
+        nextLeft = _window.Left + (_direction == Direction.Right ? PixelsPerTick : -PixelsPerTick);
 
         if (nextLeft >= maxX)
         {
