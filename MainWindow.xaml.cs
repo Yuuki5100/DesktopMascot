@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private MovementService? _movementService;
     private SpriteAnimationService? _animationService;
     private readonly AiHayatoIdleAnimationService _aiHayatoIdleAnimationService;
+    private readonly AiHayatoWalkAnimationService _aiHayatoWalkAnimationService;
     private AppSettings _settings = new();
     private Point _dragStartScreenPosition;
     private double _dragStartWindowLeft;
@@ -44,6 +45,8 @@ public partial class MainWindow : Window
         InitializeComponent();
         _characterService = new CharacterService();
         _aiHayatoIdleAnimationService = new AiHayatoIdleAnimationService(
+            SetCharacterImage);
+        _aiHayatoWalkAnimationService = new AiHayatoWalkAnimationService(
             SetCharacterImage);
         _settings = _settingsService.Load();
     }
@@ -96,6 +99,7 @@ public partial class MainWindow : Window
         _movementService?.Dispose();
         _animationService?.Dispose();
         _aiHayatoIdleAnimationService.Dispose();
+        _aiHayatoWalkAnimationService.Dispose();
         _monitorService.Dispose();
     }
 
@@ -491,13 +495,17 @@ public partial class MainWindow : Window
 
         if (_characterService.CurrentCharacter == CharacterType.AiHayato)
         {
-            // AIハヤトのWalk素材は未実装のため、AIハヤトの静止画を維持する。
             _aiHayatoIdleAnimationService.Stop();
             _animationService.Pause();
-            _movementService?.Pause();
+            _aiHayatoWalkAnimationService.Resume();
+            if (!_statusOptionsAreOpen)
+            {
+                _movementService?.Resume();
+            }
             return;
         }
 
+        _aiHayatoWalkAnimationService.Stop();
         _aiHayatoIdleAnimationService.Stop();
         _movementService?.Resume();
         _animationService.StartWalk();
@@ -513,13 +521,16 @@ public partial class MainWindow : Window
         if (mode == AnimationMode.Walk)
         {
             _aiHayatoIdleAnimationService.Stop();
+            _aiHayatoWalkAnimationService.Stop();
 
             if (_characterService.CurrentCharacter == CharacterType.AiHayato)
             {
-                // AIハヤトのWalk素材が追加されるまでは、キャラクターを保ったまま静止画で待機する。
                 _animationService.Pause();
-                _movementService.Pause();
-                SetCharacterImage(_aiHayatoIdleAnimationService.OpenImage);
+                _aiHayatoWalkAnimationService.Start();
+                if (!_statusOptionsAreOpen)
+                {
+                    _movementService.Resume();
+                }
                 WalkAnimationMenuItem.IsChecked = true;
                 IdleAnimationMenuItem.IsChecked = false;
                 return;
@@ -536,6 +547,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        _aiHayatoWalkAnimationService.Stop();
         _animationService.StartIdle();
         _movementService.Pause();
         if (_characterService.CurrentCharacter == CharacterType.AiHayato)
