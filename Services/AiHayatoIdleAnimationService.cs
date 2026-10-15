@@ -18,6 +18,7 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
     private int _fastBlinkCount;
     private bool _eyesClosed;
     private bool _fastPhase;
+    private bool _isActive;
 
     public bool IsRunning => _timer.IsEnabled;
 
@@ -39,6 +40,7 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
 
     public void Start()
     {
+        _isActive = true;
         ResetCycle(showOpenImage: true);
         _timer.Start();
         Log("AiHayato Idle animation start");
@@ -46,6 +48,7 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
 
     public void Pause()
     {
+        _isActive = false;
         _timer.Stop();
         Log("AiHayato Idle animation pause");
     }
@@ -53,6 +56,7 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
     {
         if (!_timer.IsEnabled)
         {
+            _isActive = true;
             _timer.Start();
             Log("AiHayato Idle animation resume");
         }
@@ -60,6 +64,7 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
 
     public void Stop()
     {
+        _isActive = false;
         _timer.Stop();
         ResetCycle(showOpenImage: false);
         Log("AiHayato Idle animation stop");
@@ -80,6 +85,13 @@ public sealed class AiHayatoIdleAnimationService : IDisposable
 
     private void OnTick(object? sender, EventArgs e)
     {
+        // A queued DispatcherTimer tick may arrive after Stop/Pause. Do not let
+        // the idle frame overwrite the walk-mode image in that case.
+        if (!_isActive)
+        {
+            return;
+        }
+
         if (!_eyesClosed)
         {
             _setImage(_closedImage);
