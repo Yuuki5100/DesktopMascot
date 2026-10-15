@@ -18,8 +18,10 @@
     ブランチ自体は削除しないため、コミット済みの内容は失われない。
 
 .PARAMETER Root
-    走査するフォルダ。既定は本スクリプトを含むリポジトリの 1 つ上のフォルダ
-    （例: ...\Git\DesktopMascot\script\volume-clear-code → ...\Git）。
+    走査するフォルダ。既定は WSL 上の \\wsl.localhost\Ubuntu\home\goto\Git。
+    \\wsl.localhost\<distro>\... （または \\wsl$\<distro>\...）を指定した場合、
+    git は wsl.exe 経由で WSL 内の git を使って実行する
+    （WSL 側の worktree は Linux パスで登録されているため、Windows の git.exe では正しく扱えない）。
 
 .PARAMETER Days
     この日数以上操作されていない worktree を削除対象とする。既定 7。
@@ -43,7 +45,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Root,
+    [string]$Root = '\\wsl.localhost\Ubuntu\home\goto\Git',
     [int]$Days = 7,
     [switch]$IncludeDirty,
     [switch]$Yes,
@@ -68,11 +70,36 @@ trap {
     exit 1
 }
 
+# ---------------------------------------------------------------- WSL パス変換
+# Root が \\wsl.localhost\<distro>\... の場合に設定される
+$script:WslDistro = $null
+$script:WslPrefix = $null
+
+function ConvertTo-GitPath {
+    # Windows 側パス → git に渡すパス（WSL 時は /home/... 形式）
+    param([string]$Path)
+    if (-not $script:WslDistro) { return $Path }
+    $rest = $Path.Substring($script:WslPrefix.Length) -replace '\\', '/'
+    if (-not $rest) { $rest = '/' }
+    return $rest
+}
+
+function ConvertFrom-GitPath {
+    # git が返すパス → Windows 側パス（WSL 時は \\wsl.localhost\<distro>\... 形式）
+    param([string]$Path)
+    if ($script:WslDistro -and $Path.StartsWith('/')) { return $script:WslPrefix + ($Path -replace '/', '\') }
+    return $Path -replace '/', '\'
+}
+
 function Invoke-Git {
     # ネイティブ exe の stderr で中断しないよう、呼び出し中だけ ErrorActionPreference を緩める
     param([string]$Repo, [string[]]$GitArgs)
     $ErrorActionPreference = 'Continue'
-    $out = & git.exe -C $Repo @GitArgs 2>&1
+    if ($script:WslDistro) {
+        $out = & wsl.exe -d $script:WslDistro -e git -C (ConvertTo-GitPath $Repo) @GitArgs 2>&1
+    } else {
+        $out = & git.exe -C $Repo @GitArgs 2>&1
+    }
     $ec = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     return [PSCustomObject]@{ ExitCode = $ec; Output = @($out | ForEach-Object { "$_" }) }
@@ -117,7 +144,7 @@ function Get-LastActivity {
     param([string]$WorktreePath)
     $gitFile = Join-Path $WorktreePath '.git'
     if (-not (Test-Path $gitFile -PathType Leaf)) { return $null }
-    $adminDir = ((Get-Content $gitFile -Raw) -replace '^gitdir:\s*', '').Trim()
+    $adminDir = ConvertFrom-GitPath ((Get-Content $gitFile -Raw) -replace '^gitdir:\s*', '').Trim()
     if (-not (Test-Path $adminDir)) { return $null }
 
     $times = foreach ($f in 'index', 'HEAD', 'logs\HEAD') {
@@ -129,11 +156,18 @@ function Get-LastActivity {
 }
 
 # ---------------------------------------------------------------- 判定
-# PowerShell 5.1 では param の既定値内で $PSScriptRoot が使えないため、ここで解決する
-if (-not $Root) { $Root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..')) }
+$Root = $Root.TrimEnd('\')
+if ($Root -match '^(\\\\wsl(?:\.localhost|\$)\\([^\\]+))') {
+    $script:WslPrefix = $Matches[1]
+    $script:WslDistro = $Matches[2]
+}
 Write-Step "判定（$Root 配下、最終操作から $Days 日以上経過したもの）"
 if (-not (Test-Path $Root)) { throw "フォルダが見つかりません: $Root" }
-if (-not (Get-Command git.exe -ErrorAction SilentlyContinue)) { throw "git.exe が見つかりません。Git for Windows をインストールしてください。" }
+if ($script:WslDistro) {
+    if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) { throw "wsl.exe が見つかりません。" }
+} elseif (-not (Get-Command git.exe -ErrorAction SilentlyContinue)) {
+    throw "git.exe が見つかりません。Git for Windows をインストールしてください。"
+}
 
 $threshold = (Get-Date).AddDays(-$Days)
 $targets = @()
@@ -141,7 +175,7 @@ $repos = @(Get-GitRepos $Root)
 
 foreach ($repo in $repos) {
     foreach ($wt in Get-Worktrees $repo) {
-        $wtPath = $wt.Path -replace '/', '\'
+        $wtPath = ConvertFrom-GitPath $wt.Path
         $state = $null
         $last  = $null
 
@@ -203,7 +237,7 @@ $removed = 0
 $failed  = @()
 foreach ($t in $targets) {
     if ($t.Missing) { continue }   # フォルダ消失分は後段の prune で片付ける
-    $r = Invoke-Git $t.Repo @('worktree', 'remove', '--force', $t.Path)
+    $r = Invoke-Git $t.Repo @('worktree', 'remove', '--force', (ConvertTo-GitPath $t.Path))
     if ($r.ExitCode -eq 0) {
         Write-Ok "削除しました: $($t.Path)"
         $removed++
